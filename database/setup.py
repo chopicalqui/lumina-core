@@ -13,6 +13,17 @@
 # You should have received a copy of the GNU General Public License
 # along with Lumina. If not, see <https://www.gnu.org/licenses/>.
 
-__author__ = "Lukas Reiter"
-__copyright__ = "Copyright (C) 2024 Lukas Reiter"
-__license__ = "GPLv3"
+from .views.util import create_views, drop_views
+from .functions.util import create_functions, drop_functions
+
+
+async def setup(drop: bool = False, create: bool = False):
+    """
+    Set up the database objects.
+    """
+    if drop:
+        await drop_views()
+        await drop_functions()
+    if create:
+        await create_functions()
+        await create_views()

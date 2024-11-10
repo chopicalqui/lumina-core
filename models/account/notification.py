@@ -20,16 +20,23 @@ __license__ = "GPLv3"
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
-from sqlmodel import SQLModel, Field, Column, ForeignKey
+from sqlmodel import SQLModel, Field, Column, ForeignKey, Relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects import postgresql
 
 
+class Notify(BaseModel):
+    """
+    This is the notification schema. It is used by the FastAPI to create a notification.
+    """
+    subject: str
+    message: str
+
+
 class Notification(SQLModel, table=True):
     """
-    Store information about a user's notifications.
+    Store information about an account's notifications.
     """
-    __tablename__ = "user_notification"
     id: UUID = Field(
         primary_key=True,
         index=True,
@@ -53,11 +60,16 @@ class Notification(SQLModel, table=True):
         description="The date and time when the token was last modified."
     )
     # Foreign keys
-    user_id: UUID = Field(
+    account_id: UUID = Field(
         default=None,
-        sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("user_data.id", ondelete="CASCADE")),
-        description="Foreign key to the user that the notification belongs to."
+        sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("account.id", ondelete="CASCADE")),
+        description="Foreign key to the account that the notification belongs to."
     )
+    # Relationship definitions
+    account: "Account" = Relationship(back_populates="notifications")
+
+    def __eq__(self, other: "Notification") -> bool:
+        return self.subject == other.subject and self.message == other.message
 
 
 class NotificationRead(BaseModel):

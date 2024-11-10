@@ -16,3 +16,21 @@
 __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
+
+from .. import engine
+
+
+async def drop_views():
+    """
+    Drops all views in the database.
+    """
+    async with engine.begin() as conn:
+        ...
+
+
+async def create_views():
+    """
+    Create all views in the database.
+    """
+    async with engine.begin() as conn:
+        ...

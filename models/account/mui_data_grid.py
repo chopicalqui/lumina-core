@@ -30,9 +30,8 @@ from sqlalchemy.dialects import postgresql
 
 class MuiDataGrid(SQLModel, table=True):
     """
-    Store information about a user's Material UI DataGrid configuration.
+    Store information about an account's Material UI DataGrid configuration.
     """
-    __tablename__ = "user_muidatagrid"
 
     id: UUID = Field(
         primary_key=True,
@@ -60,26 +59,25 @@ class MuiDataGrid(SQLModel, table=True):
         description="The date and time when the configuration was last modified."
     )
     # Foreign keys
-    user_id: UUID = Field(
+    account_id: UUID = Field(
         default=None,
-        sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("user_data.id", ondelete="CASCADE")),
-        description="Foreign key to the user that the configuration belongs to."
+        sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("account.id", ondelete="CASCADE")),
+        description="Foreign key to the account that the configuration belongs to."
     )
     # Relationship definitions
+    account: "Account" = Relationship(back_populates="data_grids")
     filters: List["MuiDataGridFilter"] = Relationship(back_populates="data_grid")
 
     __table_args__ = (
         # TODO: Write unittest for postgresql_nulls_not_distinct
-        UniqueConstraint('settings_id', 'user_id', postgresql_nulls_not_distinct=True),
+        UniqueConstraint('settings_id', 'account_id', postgresql_nulls_not_distinct=True),
     )
 
 
 class MuiDataGridFilter(SQLModel, table=True):
     """
-    Store information about a user's Material UI DataGrid filter configuration.
+    Store information about a account's Material UI DataGrid filter configuration.
     """
-    __tablename__ = "user_muidatagridfilter"
-
     id: UUID = Field(
         primary_key=True,
         index=True,
@@ -105,7 +103,7 @@ class MuiDataGridFilter(SQLModel, table=True):
     # Foreign keys
     data_grid_id: UUID = Field(
         default=None,
-        sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("user_muidatagrid.id", ondelete="CASCADE")),
+        sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("muidatagrid.id", ondelete="CASCADE")),
         description="Foreign key to the data grid that the filter belongs to."
     )
     # Relationship definitions

@@ -20,9 +20,9 @@ __license__ = "GPLv3"
 
 from enum import Enum
 from typing import List, Optional
-from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from abc import abstractmethod
+from .. import DatabaseObjectBase
 
 
 class TriggerWhenEnum(Enum):
@@ -48,12 +48,14 @@ class DatabaseTrigger:
     """
     Base class to manage database triggers
     """
-    def __init__(self,
-                 name: str,
-                 table_name: str,
-                 when: TriggerWhenEnum,
-                 event: List[TriggerEventEnum],
-                 when_clause: Optional[str] = None):
+    def __init__(
+            self,
+            name: str,
+            table_name: str,
+            when: TriggerWhenEnum,
+            event: List[TriggerEventEnum],
+            when_clause: Optional[str] = None
+    ):
         if len(event) == 0:
             raise ValueError("The event argument must contain at least one element.")
         self.name = name
@@ -88,35 +90,29 @@ class FunctionArgument:
         self.type = argument_type
 
 
-class DatabaseFunction:
+class DatabaseFunction(DatabaseObjectBase):
     """
     Base class to manage database triggers
     """
-    def __init__(self,
-                 connection: Connection,
-                 name: str,
-                 returns: FunctionReturnEnum,
-                 arguments: List[FunctionArgument] = None,
-                 triggers: List[DatabaseTrigger] = None):
+    def __init__(
+            self,
+            connection: Connection,
+            name: str,
+            returns: FunctionReturnEnum,
+            arguments: List[FunctionArgument] = None,
+            triggers: List[DatabaseTrigger] = None
+    ):
+        super().__init__(connection)
         self._triggers = triggers if triggers else []
         if len(set([item.name for item in self._triggers])) != len(self._triggers):
             raise ValueError("The trigger names must be unique!")
         self.name = name
         self._returns = returns
         self._arguments = ", ".join([f"{item.name} {item.type}" for item in (arguments if arguments else [])])
-        self._connection = connection
 
-    def _execute(self, content: str):
-        """
-        Executes the given SQL statement.
-        """
-        # print(content)
-        self._connection.execute(text(content).execution_options(autocommit=True))
-
-    def drop(self) -> str:
+    def drop(self):
         """
         Drop the function together with all calling triggers.
-        :return:
         """
         # Drop all database triggers
         for trigger in self._triggers:

@@ -25,13 +25,22 @@ from pydantic import BaseModel, Field as PydanticField, ConfigDict, computed_fie
 from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy import Enum
 from sqlalchemy.sql import func
-from sqlalchemy.orm import backref
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects import postgresql
-from .token import TokenType, JsonWebToken
-from .notification import Notification
+from .token import AccessTokenType, AccessToken
+from .notification import Notification, Notify
 from .role import RoleEnum, ROLE_PERMISSION_MAPPING
 from .mui_data_grid import MuiDataGrid
-from ...status import StatusMessage
+from ...utils.status import StatusMessage
+
+
+class AccountType(IntEnum):
+    """
+    Category of account types.
+    """
+    personal = 10
+    technical = 20
+    obsolete = 30
 
 
 class TableDensityType(IntEnum):
@@ -43,88 +52,85 @@ class TableDensityType(IntEnum):
     compact = 20
 
 
-class User(SQLModel, table=True):
+class Account(SQLModel, table=True):
     """
-    Store information about a user in the database.
+    Store information about an account in the database.
     """
-    __tablename__ = "user_data"
     id: UUID = Field(
         primary_key=True,
         index=True,
         sa_column_kwargs=dict(server_default=func.gen_random_uuid()),
-        description="The unique identifier of the user."
+        description="The unique identifier of the account."
     )
     email: str = Field(
         index=True,
         unique=True,
-        description="The email address of the user."
+        description="The email address of the account."
     )
     locked: bool = Field(
         sa_column_kwargs=dict(server_default='false'),
-        description="Indicates if the user account has been locked."
+        description="Indicates if the account has been locked."
     )
-    full_name: str = Field(description="The full name of the user.")
+    type: AccountType = Field(
+        sa_column_kwargs=dict(server_default=AccountType.personal.name),
+        description="The type of account."
+    )
+    full_name: str = Field(description="The full name of the account.")
     active_from: date = Field(
         sa_column_kwargs=dict(server_default=func.now()),
-        description="The date when the user account becomes active. Before this date, the user cannot log in."
+        description="The date when the account becomes active. Before this date, the account cannot log in."
     )
     active_until: date | None = Field(
-        description="The date when the user account becomes inactive. After this date, the user cannot log in."
+        description="The date when the account becomes inactive. After this date, the account cannot log in."
     )
-    # User settings
+    # Account settings
     light_mode: bool = Field(
         sa_column_kwargs=dict(server_default='true'),
-        description="Indicates if the user prefers the light mode."
+        description="Indicates if the account prefers the light mode."
     )
     toggle_menu: bool = Field(
         sa_column_kwargs=dict(server_default='false'),
-        description="Indicates if the user prefers the detailed UI menu."
+        description="Indicates if the account prefers the detailed UI menu."
     )
     table_density: TableDensityType = Field(
         sa_column_kwargs=dict(server_default=TableDensityType.compact.name),
         description="The preferred table density of the MUI DataGrids."
     )
-    avatar: bytes | None = Field(description="The user's avatar image.")
+    avatar: bytes | None = Field(description="The account's avatar image.")
     roles: Set[RoleEnum] = Field(
         default={},
         sa_column=Column(postgresql.ARRAY(Enum(RoleEnum))),
-        description="The roles of the user."
+        description="The roles of the account."
     )
     # Internal information only
-    last_login: datetime | None = Field(description="The date and time when the user last logged in.")
+    last_login: datetime | None = Field(description="The date and time when the account last logged in.")
     created_at: datetime = Field(
         sa_column_kwargs=dict(server_default=func.now()),
-        description="The date and time when the user was created."
+        description="The date and time when the account was created."
     )
     last_modified_at: datetime | None = Field(
         sa_column_kwargs=dict(onupdate=func.now()),
-        description="The date and time when the user was last modified."
+        description="The date and time when the account was last modified."
     )
     # Relationship definitions
-    tokens: List[JsonWebToken] = Relationship(
-        sa_relationship_kwargs=dict(
-            backref=backref("user", cascade="delete"),
-        ),
-        cascade_delete=True
+    tokens: List[AccessToken] = Relationship(
+        back_populates="account", cascade_delete=True
     )
     notifications: List[Notification] = Relationship(
         sa_relationship_kwargs=dict(
-            backref=backref("user", cascade="delete"),
+            back_populates="account",
             order_by="desc(Notification.created_at)"
         ),
         cascade_delete=True
     )
     data_grids: List[MuiDataGrid] = Relationship(
-        sa_relationship_kwargs=dict(
-            backref=backref("user", cascade="delete"),
-        ),
-        cascade_delete=True
+        back_populates="account", cascade_delete=True
     )
 
     @property
     def roles_str(self) -> List[str]:
         """
-        Returns all user roles as a list of strings.
+        Returns all account roles as a list of strings.
         """
         return [item.name for item in self.roles]
 
@@ -141,7 +147,7 @@ class User(SQLModel, table=True):
     @property
     def is_active(self) -> bool:
         """
-        Returns True if the user is active.
+        Returns True if the account is active.
         """
         return not self.locked and \
                self.active_from <= date.today() and \
@@ -149,16 +155,16 @@ class User(SQLModel, table=True):
 
     def get_access_token(self, name: str) -> str | None:
         """
-        Returns the user's access token by name.
+        Returns the account's access token by name.
         """
-        result = [item for item in self.tokens if item.name == name and item.type == TokenType.api]
+        result = [item for item in self.tokens if item.name == name and item.type == AccessTokenType.api]
         if not result:
             return None
         return result[0].value
 
     def get_data_grid(self, settings_id: UUID) -> Dict:
         """
-        Returns the user's Material UI DataGrid configuration by settings_id.
+        Returns the account's Material UI DataGrid configuration by settings_id.
         """
         result = [item for item in self.data_grids if item.settings_id == settings_id]
         if not result:
@@ -167,17 +173,28 @@ class User(SQLModel, table=True):
 
     def get_data_grid_filters(self, settings_id: UUID) -> List[Dict]:
         """
-        Returns the user's Material UI DataGrid filter configurations by settings_id.
+        Returns the account's Material UI DataGrid filter configurations by settings_id.
         """
         result = [item for item in self.data_grids if item.settings_id == settings_id]
         if not result:
             return []
         return [item.filter for item in result[0].filters]
 
+    async def notify(self, session: AsyncSession, message: Notify, dedup: bool = True):
+        """
+        Send the account a notification.
+        """
+        unread_duplicates = [item for item in self.notifications if item == message and not item.read]
+        if not dedup or len(unread_duplicates) == 0:
+            session.add(Notification(**message.dict(), account_id=self.id))
+        else:
+            for item in unread_duplicates:
+                item.created_at = func.now()
 
-class UserTest(BaseModel):
+
+class AccountTest(BaseModel):
     """
-    This is the user schema. It is used by pytest to create and manage test users during unittests.
+    This is the account schema. It is used by pytest to create and manage test accounts during unittests.
     """
     id: UUID | None = PydanticField(None)
     email: str
@@ -207,12 +224,12 @@ class UserTest(BaseModel):
         """
         Returns a cookie header with the bearer token.
         """
-        return UserTest.get_auth_header(self.bearer)
+        return AccountTest.get_auth_header(self.bearer)
 
 
-class UserRead(BaseModel):
+class AccountRead(BaseModel):
     """
-    This is the user schema. It is used by the FastAPI to read a user.
+    This is the account schema. It is used by the FastAPI to read an account.
     """
     model_config = ConfigDict(
         use_enum_values=False,
@@ -232,17 +249,17 @@ class UserRead(BaseModel):
     last_login: datetime | None = PydanticField(default=None)
 
 
-class NotifyUser(BaseModel):
+class WebSocketNotifyAccount(BaseModel):
     """
-    Schema for notifying users via the message queue and WebSockets.
+    Schema for notifying accounts via the message queue and WebSockets.
     """
-    user: User
+    account: Account
     status: StatusMessage
 
 
-class UserReadMe(UserRead):
+class AccountReadMe(AccountRead):
     """
-    This is the user schema. It is used by the FastAPI to read a user.
+    This is the account schema. It is used by the FastAPI to read an account.
     """
     light_mode: bool
     toggle_menu: bool
@@ -254,9 +271,9 @@ class UserReadMe(UserRead):
         return self.avatar is not None
 
 
-class UserUpdateAdmin(SQLModel):
+class AccountUpdateAdmin(SQLModel):
     """
-    This is the user schema. It is used by the FastAPI to update a user.
+    This is the account schema. It is used by the FastAPI to update an account.
     """
     model_config = ConfigDict(extra="ignore")
 

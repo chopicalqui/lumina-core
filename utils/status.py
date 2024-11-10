@@ -23,7 +23,7 @@ from typing import Any, Dict
 from pydantic import BaseModel, Field as PydanticField, ConfigDict, field_validator
 
 
-class SeverityEnum(IntEnum):
+class AlertSeverityEnum(IntEnum):
     """
     Enum that defines MUI's Alert severity levels.
     """
@@ -40,10 +40,10 @@ class StatusMessage(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         use_enum_values=False,  # Ensure that enum values are not automatically used
-        json_encoders={SeverityEnum: lambda x: x.name}
+        json_encoders={AlertSeverityEnum: lambda x: x.name}
     )
     status: int
-    severity: SeverityEnum
+    severity: AlertSeverityEnum
     message: str
     open: bool = PydanticField(default=True)
     error_code: UUID | None = PydanticField(default=None)
@@ -52,5 +52,5 @@ class StatusMessage(BaseModel):
     @field_validator('severity', mode='before')
     def convert_int_serial(cls, v):
         if isinstance(v, str):
-            v = SeverityEnum[v]
+            v = AlertSeverityEnum[v]
         return v

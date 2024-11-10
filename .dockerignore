@@ -9,3 +9,8 @@
 **/*.crt
 **/*.csr
 **/*.pem
+LICENSE
+README.md
+requirements.txt
+poetry.lock
+poetry.toml

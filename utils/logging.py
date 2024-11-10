@@ -20,14 +20,14 @@ __license__ = "GPLv3"
 import os
 import sys
 import logging
-from .models.user.user import User
+from ..models.account import Account
 
 # Obtain the log level, log file, and log broker host from the environment variables.
 log_file = os.getenv('LOG_FILE')
 log_level = os.getenv('LOG_LEVEL', 'INFO')
 log_format = os.getenv(
     'LOG_FORMAT',
-    '%(asctime)s [%(levelname)-8s] %(client_ip)-15s %(user_name)s - %(name)s - %(message)s'
+    '%(asctime)s [%(levelname)-8s] %(client_ip)-15s %(account_name)s - %(name)s - %(message)s'
 )
 log_date_format = os.getenv('LOG_DATE_FORMAT', '%Y-%m-%d %H:%M:%S')
 log_broker_host = os.getenv('LOG_BROKER_HOST')
@@ -35,27 +35,27 @@ log_broker_host = os.getenv('LOG_BROKER_HOST')
 
 class InjectingFilter(logging.Filter):
     """
-    This is a custom logging filter that adds a username field to the log record.
+    This is a custom logging filter that adds an account name field to the log record.
     """
-    def __init__(self, user: User | None = None):
+    def __init__(self, account: Account | None = None):
         super().__init__()
-        self.user = user
-        self.email = user.email if user else None
-        self.client_ip = user.client_ip if user else None
+        self.account = account
+        self.email = account.email if account else None
+        self.client_ip = account.client_ip if account else None
 
     def filter(self, record):
-        record.user_name = self.email or 'n/a'
+        record.account_name = self.email or 'n/a'
         record.client_ip = self.client_ip or 'n/a'
         return True
 
 
 def record_factory(*args, **kwargs):
     """
-    This function is used to create a log record with the username and client IP.
+    This function is used to create a log record with the account name and client IP.
     """
     record = old_factory(*args, **kwargs)
-    if not hasattr(record, 'user_name'):
-        record.user_name = "n/a"
+    if not hasattr(record, 'account_name'):
+        record.account_name = "n/a"
     if not hasattr(record, 'client_ip'):
         record.client_ip = "n/a"
     return record
@@ -78,3 +78,10 @@ logging.basicConfig(
 old_factory = logging.getLogRecordFactory()
 logging.setLogRecordFactory(record_factory)
 logger = logging.getLogger(__name__)
+
+
+def get_logger() -> logging.Logger:
+    """
+    Returns a logger with the current account injected.
+    """
+    return logger

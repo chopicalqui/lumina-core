@@ -16,3 +16,5 @@
 __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
+
+from .account import *

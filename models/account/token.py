@@ -21,21 +21,20 @@ from enum import Enum
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, Field as PydanticField
-from sqlmodel import SQLModel, Field, Column, ForeignKey
+from sqlmodel import SQLModel, Field, Column, ForeignKey, Relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects import postgresql
 
 
-class TokenType(Enum):
+class AccessTokenType(Enum):
     user = 10
     api = 20
 
 
-class JsonWebToken(SQLModel, table=True):
+class AccessToken(SQLModel, table=True):
     """
-    Store information about a user tokens in the database.
+    Store information about an account tokens in the database.
     """
-    __tablename__ = "user_token"
     id: UUID = Field(
         primary_key=True,
         index=True,
@@ -43,7 +42,7 @@ class JsonWebToken(SQLModel, table=True):
         description="The unique identifier of the token."
     )
     name: str | None = Field(description="The name of the token. Only used for API access tokens.")
-    type: TokenType = Field(description="The type of the token.")
+    type: AccessTokenType = Field(description="The type of the token.")
     revoked: bool = Field(
         sa_column_kwargs=dict(server_default='false'),
         description="Indicates if the token has been revoked."
@@ -65,32 +64,36 @@ class JsonWebToken(SQLModel, table=True):
         description="The date and time when the token was last modified."
     )
     # Foreign keys
-    user_id: UUID = Field(
+    account_id: UUID = Field(
         default=None,
         sa_column=Column(
             postgresql.UUID(as_uuid=True),
-            ForeignKey("user_data.id", ondelete="CASCADE"),
+            ForeignKey("account.id", ondelete="CASCADE"),
             nullable=False
         ),
-        description="Foreign key to the user that owns the token."
+        description="Foreign key to the account that owns the token."
+    )
+    # Relationship definitions
+    account: "Account" = Relationship(
+        back_populates="tokens"
     )
 
 
-class JsonWebTokenCreateUpdateBase(BaseModel):
+class AccessTokenCreateUpdateBase(BaseModel):
     """
     Represents the base schema for updating or creating a JWT.
     """
     expiration: datetime | None = PydanticField(default=None, description="The expiration date and time of the token.")
 
 
-class JsonWebTokenCreate(JsonWebTokenCreateUpdateBase):
+class AccessTokenCreate(AccessTokenCreateUpdateBase):
     """
     Schema for creating a JWT. It is used by the FastAPI to create a new JWT.
     """
     name: str = PydanticField(description="The name of the token.")
 
 
-class JsonWebTokenRead(JsonWebTokenCreateUpdateBase):
+class AccessTokenRead(AccessTokenCreateUpdateBase):
     """
     Schema for reading a JWT (without token value). It is used by the FastAPI to read a JWT.
     """
@@ -100,14 +103,14 @@ class JsonWebTokenRead(JsonWebTokenCreateUpdateBase):
     created_at: datetime
 
 
-class JsonWebTokenReadTokenValue(JsonWebTokenRead):
+class AccessTokenReadTokenValue(AccessTokenRead):
     """
     Schema for reading a JWT including token value. It is used by the FastAPI to read a JWT.
     """
     value: str
 
 
-class JsonWebTokenUpdate(BaseModel):
+class AccessTokenUpdate(BaseModel):
     """
     Schema for updating a JWT. It is used by the FastAPI to update a JWT.
     """

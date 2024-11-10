@@ -20,10 +20,10 @@ __license__ = "GPLv3"
 
 from sqlmodel import SQLModel
 from sqlalchemy.future import select
-from .database import engine, async_session, settings_base as settings
+from ..database import engine, async_session, settings_base as settings
+from ..database.setup import setup
 # We need to import all models to ensure they are created.
-from .models.user.user import User
-from .models.country import Country
+from ..models.country import Country
 
 
 async def drop_db_and_tables():
@@ -61,18 +61,16 @@ async def import_countries():
             await session.commit()
 
 
-async def init_db(
-        drop_tables: bool = False,
-        create_tables: bool = False,
-        load_data: bool = False
-):
+async def init_db():
     """
     Initializes the database.
     """
-    if drop_tables:
+    if settings.drop_database_objects:
+        await setup(drop=True)
         await drop_db_and_tables()
-    if create_tables:
+    if settings.create_database_objects:
         await create_db_and_tables()
-    if load_data:
+        await setup(create=True)
+    if settings.load_static_data:
         # Initialize static lookup tables
         await import_countries()

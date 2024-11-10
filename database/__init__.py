@@ -17,20 +17,51 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
+from abc import abstractmethod
 from uuid import UUID
 from typing import Any, Type
 from pydantic import BaseModel
 from sqlmodel import SQLModel
-from sqlalchemy.orm import Session
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, text
+from sqlalchemy.future import select
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from .. import NotFoundException
-from ..config import SettingsBase
+from ..utils import NotFoundError
+from ..utils.config import SettingsBase
 
 # This is a workaround to add the NULLS NOT DISTINCT option to the UNIQUE constraint.
 # Source: https://stackoverflow.com/questions/57646553/treating-null-as-a-distinct-value-in-a-table-unique-constraint
 UniqueConstraint.argument_for("postgresql", 'nulls_not_distinct', None)
+
+
+class DatabaseObjectBase:
+    """
+    Base class for managing database objects like views, procedures and triggers.
+    """
+    def __init__(self, connection: Connection):
+        self._connection = connection
+
+    def _execute(self, content: str):
+        """
+        Executes the given SQL statement.
+        """
+        # print(content)
+        self._connection.execute(text(content).execution_options(autocommit=True))
+
+    @abstractmethod
+    def create(self, **kwargs):
+        """
+        Create the database object.
+        """
+        ...
+
+    @abstractmethod
+    def drop(self, **kwargs):
+        """
+        Drop the database object.
+        """
+        ...
 
 
 @compiles(UniqueConstraint, "postgresql")
@@ -44,20 +75,13 @@ def compile_create_uc(create, compiler, **kw):
     return stmt
 
 
-def get_all(session: Session, model: Type) -> Any:
-    """
-    Get all objects of class model from the database.
-    """
-    return session.query(model)
-
-
 async def get_by_id(session: AsyncSession, model: Type, item_id: UUID) -> Any:
     """
     Get an object of class model by its ID from the database.
     """
     result = await session.get(model, item_id)
     if not result:
-        raise NotFoundException(f"{model.__name__} with ID '{item_id}' not found.")
+        raise NotFoundError(f"{model.__name__} with ID '{item_id}' not found.")
     return result
 
 
@@ -123,3 +147,14 @@ engine = create_async_engine(
     pool_pre_ping=settings_base.db_pool_pre_ping
 )
 async_session = async_sessionmaker(engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+
+async def get_db():
+    """
+    Dependency to allow FastAPI endpoints to access the database.
+    """
+    db = async_session()
+    try:
+        yield db
+    finally:
+        await db.close()

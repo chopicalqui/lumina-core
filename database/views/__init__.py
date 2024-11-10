@@ -16,3 +16,27 @@
 __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
+
+from sqlalchemy.engine import Connection
+from .. import DatabaseObjectBase
+
+
+class DatabaseView(DatabaseObjectBase):
+    """
+    Base class to manage database triggers
+    """
+    def __init__(
+            self,
+            connection: Connection,
+            name: str,
+            query: str
+    ):
+        super().__init__(connection)
+        self.name = name
+        self.query = query
+
+    def create(self):
+        self._execute(f"CREATE OR REPLACE VIEW {self.name} AS {self.query}")
+
+    def drop(self):
+        self._execute(f"DROP VIEW IF EXISTS {self.name}")

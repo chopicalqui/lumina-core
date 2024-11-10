@@ -41,14 +41,20 @@ class SettingsBase:
         self.db_pool_pre_ping = os.getenv("POSTGRES_POOL_PRE_PING", "false").lower() == "true"
         self.db_echo_pool = os.getenv("POSTGRES_ECHO_POOL")  # Set to debug to debug reset-on-return events
         self.cert = os.getenv("SSL_CERT_FILE")
+        self.drop_database_objects = os.getenv("DROP_DATABASE_OBJECTS", "false").lower() == "true"
+        self.create_database_objects = os.getenv("CREATE_DATABASE_OBJECTS", "false").lower() == "true"
+        self.load_static_data = os.getenv("LOAD_STATIC_DATA", "false").lower() == "true"
         # Redis
+        self.redis_user = os.getenv("REDIS_USER")
+        self.redis_password = os.getenv("REDIS_PASSWORD")
         self.redis_host = os.getenv("REDIS_HOST")
         self.redis_port = int(os.getenv("REDIS_PORT", 6379))
         self.redis_ssl = os.getenv("REDIS_USE_SSL", "true").lower() == "true"
-        # Channel definitions
         self.redis_notify_user_channel = os.getenv("REDIS_NOTIFY_USER_CHANNEL")
+        # Channel definitions
+        self.redis_notify_account_channel = os.getenv("REDIS_NOTIFY_ACCOUNT_CHANNEL")
         # Resource files
-        self.country_file = os.path.join(os.getenv("DATA_LOCATION", ""), "country-data.json")
+        self.country_file = os.path.join(os.getenv("STATIC_DATA_LOCATION", ""), "country-data.json")
 
     @property
     def database_uri(self):
