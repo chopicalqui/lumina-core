@@ -42,6 +42,7 @@ class StatusMessage(BaseModel):
         use_enum_values=False,  # Ensure that enum values are not automatically used
         json_encoders={AlertSeverityEnum: lambda x: x.name}
     )
+    type: str = "statusMessage"
     status: int
     severity: AlertSeverityEnum
     message: str

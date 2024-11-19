@@ -144,7 +144,6 @@ class Account(SQLModel, table=True):
             result.extend([item for item in ROLE_PERMISSION_MAPPING[role.name]])
         return list(set(sorted(result)))
 
-    @property
     def is_active(self) -> bool:
         """
         Returns True if the account is active.
