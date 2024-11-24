@@ -88,7 +88,7 @@ class Account(SQLModel, table=True):
         sa_column_kwargs=dict(server_default='true'),
         description="Indicates if the account prefers the light mode."
     )
-    toggle_menu: bool = Field(
+    sidebar_collapsed: bool = Field(
         sa_column_kwargs=dict(server_default='false'),
         description="Indicates if the account prefers the detailed UI menu."
     )
@@ -183,7 +183,7 @@ class Account(SQLModel, table=True):
         """
         Send the account a notification.
         """
-        unread_duplicates = [item for item in self.notifications if item == message and not item.read]
+        unread_duplicates = [item for item in self.notifications if item.message == message and not item.read]
         if not dedup or len(unread_duplicates) == 0:
             session.add(Notification(**message.dict(), account_id=self.id))
         else:
@@ -261,13 +261,9 @@ class AccountReadMe(AccountRead):
     This is the account schema. It is used by the FastAPI to read an account.
     """
     light_mode: bool
-    toggle_menu: bool
-    avatar: bytes | None = PydanticField(None, exclude=True)
+    sidebar_collapsed: bool
     table_density: TableDensityType
-
-    @computed_field
-    def has_avatar(self) -> bool:
-        return self.avatar is not None
+    avatar: str | None = PydanticField(default=None)
 
 
 class AccountUpdateAdmin(SQLModel):

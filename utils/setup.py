@@ -17,13 +17,15 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
-
+import logging
 from sqlmodel import SQLModel
 from sqlalchemy.future import select
 from ..database import engine, async_session, settings_base as settings
 from ..database.setup import setup
 # We need to import all models to ensure they are created.
 from ..models.country import Country
+
+logger = logging.getLogger("backend.setup")
 
 
 async def drop_db_and_tables():
@@ -66,11 +68,14 @@ async def init_db():
     Initializes the database.
     """
     if settings.drop_database_objects:
+        logger.info("Dropping database objects.")
         await setup(drop=True)
         await drop_db_and_tables()
     if settings.create_database_objects:
+        logger.info("Creating database objects.")
         await create_db_and_tables()
         await setup(create=True)
     if settings.load_static_data:
+        logger.info("Loading initial data into database.")
         # Initialize static lookup tables
         await import_countries()

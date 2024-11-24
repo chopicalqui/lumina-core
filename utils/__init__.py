@@ -20,6 +20,7 @@ __license__ = "GPLv3"
 import hashlib
 from uuid import UUID
 from pydantic import BaseModel, Field as PydanticField, AliasChoices
+from .status import StatusMessage
 from ..models.account import Account
 
 

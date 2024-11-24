@@ -17,20 +17,19 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
-from uuid import UUID
-from enum import IntEnum, auto
+from enum import StrEnum
 from typing import Any, Dict
-from pydantic import BaseModel, Field as PydanticField, ConfigDict, field_validator
+from pydantic import BaseModel, Field as PydanticField, ConfigDict
 
 
-class AlertSeverityEnum(IntEnum):
+class AlertSeverityEnum(StrEnum):
     """
     Enum that defines MUI's Alert severity levels.
     """
-    error = auto()
-    success = auto()
-    info = auto()
-    warning = auto()
+    error = "error"
+    success = "success"
+    info = "info"
+    warning = "warning"
 
 
 class StatusMessage(BaseModel):
@@ -39,19 +38,10 @@ class StatusMessage(BaseModel):
     """
     model_config = ConfigDict(
         from_attributes=True,
-        use_enum_values=False,  # Ensure that enum values are not automatically used
         json_encoders={AlertSeverityEnum: lambda x: x.name}
     )
     type: str = "statusMessage"
     status: int
     severity: AlertSeverityEnum
     message: str
-    open: bool = PydanticField(default=True)
-    error_code: UUID | None = PydanticField(default=None)
     payload: Dict[str, Any] | None = PydanticField(default=None)
-
-    @field_validator('severity', mode='before')
-    def convert_int_serial(cls, v):
-        if isinstance(v, str):
-            v = AlertSeverityEnum[v]
-        return v
