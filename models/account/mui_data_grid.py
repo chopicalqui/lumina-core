@@ -44,7 +44,6 @@ class MuiDataGrid(SQLModel, table=True):
         description="The unique identifier of the data grid settings."
     )
     settings: Dict | None = Field(
-        default={},
         sa_column=Column(postgresql.JSON()),
         description="The data grid settings."
     )

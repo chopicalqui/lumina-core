@@ -21,13 +21,13 @@ from enum import IntEnum
 from uuid import UUID
 from datetime import date, datetime
 from typing import List, Set, Dict
-from pydantic import BaseModel, Field as PydanticField, ConfigDict, computed_field
+from pydantic import BaseModel, Field as PydanticField, ConfigDict
 from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy import Enum
 from sqlalchemy.sql import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects import postgresql
-from .token import AccessTokenType, AccessToken
+from .access_token import AccessTokenType, AccessToken
 from .notification import Notification, Notify
 from .role import RoleEnum, ROLE_PERMISSION_MAPPING
 from .mui_data_grid import MuiDataGrid
@@ -119,12 +119,17 @@ class Account(SQLModel, table=True):
     notifications: List[Notification] = Relationship(
         sa_relationship_kwargs=dict(
             back_populates="account",
-            order_by="desc(Notification.created_at)"
+            order_by="desc(Notification.created_at)",
+            lazy='selectin'
         ),
         cascade_delete=True
     )
     data_grids: List[MuiDataGrid] = Relationship(
-        back_populates="account", cascade_delete=True
+        sa_relationship_kwargs=dict(
+            back_populates="account",
+            lazy='selectin'
+        ),
+        cascade_delete=True
     )
 
     @property
