@@ -26,6 +26,7 @@ class RoleEnum(enum.IntEnum):
     """
     auditor = 100
     admin = 200
+    api = 300
 
 
 class ApiPermissionDetails:
@@ -48,12 +49,16 @@ class ApiPermissionEnum(enum.Enum):
     account_update = ApiPermissionDetails(description="Update an account")
     account_me_read = ApiPermissionDetails(description="Read the current account")
     account_me_update = ApiPermissionDetails(description="Update the current account")
+    access_token_create = ApiPermissionDetails(description="Create an access token")
+    access_token_read = ApiPermissionDetails(description="Read access tokens")
+    access_token_update = ApiPermissionDetails(description="Update an access token")
+    access_token_delete = ApiPermissionDetails(description="Delete an access token")
     websocket = ApiPermissionDetails(description="Establish a WebSocket connection")
 
 
 # Perform a check to ensure that there are no duplicate values in the enum.
 scopes = [item for item in ApiPermissionEnum]
-assert len(scopes) == 6
+assert len(scopes) == 10
 result_count = {}
 for scope in scopes:
     if scope.value not in result_count:

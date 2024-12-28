@@ -19,9 +19,11 @@ __license__ = "GPLv3"
 
 from enum import Enum
 from uuid import UUID
+from typing import List, Set
 from datetime import datetime
 from pydantic import BaseModel, Field as PydanticField
 from sqlmodel import SQLModel, Field, Column, ForeignKey, Relationship
+from sqlalchemy import String
 from sqlalchemy.sql import func
 from sqlalchemy.dialects import postgresql
 
@@ -43,6 +45,11 @@ class AccessToken(SQLModel, table=True):
     )
     name: str | None = Field(description="The name of the token. Only used for API access tokens.")
     type: AccessTokenType = Field(description="The type of the token.")
+    scopes: Set[str] | None = Field(
+        default={},
+        sa_column=Column(postgresql.ARRAY(String)),
+        description="The scopes of the token."
+    )
     revoked: bool = Field(
         sa_column_kwargs=dict(server_default='false'),
         description="Indicates if the token has been revoked."
@@ -83,7 +90,8 @@ class AccessTokenCreateUpdateBase(BaseModel):
     """
     Represents the base schema for updating or creating a JWT.
     """
-    expiration: datetime | None = PydanticField(default=None, description="The expiration date and time of the token.")
+    scopes: List[str] = PydanticField(description="The scopes of the token.")
+    expiration: datetime = PydanticField(description="The expiration date and time of the token.")
 
 
 class AccessTokenCreate(AccessTokenCreateUpdateBase):

@@ -21,7 +21,7 @@ from enum import IntEnum
 from uuid import UUID
 from datetime import date, datetime
 from typing import List, Set, Dict
-from pydantic import BaseModel, Field as PydanticField, ConfigDict
+from pydantic import BaseModel, Field as PydanticField, ConfigDict, AliasChoices
 from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy import Enum
 from sqlalchemy.sql import func
@@ -279,6 +279,11 @@ class AccountUpdateAdmin(SQLModel):
 
     id: UUID
     locked: bool | None = PydanticField(default=None)
-    show_in_dropdowns: bool | None = PydanticField(default=None)
-    active_from: date | None = PydanticField(default=None)
-    active_until: date | None = PydanticField(default=None)
+    active_from: date = PydanticField(
+        default=None,
+        validation_alias=AliasChoices("active_from", "activeFrom")
+    )
+    active_until: date | None = PydanticField(
+        default=None,
+        validation_alias=AliasChoices("active_until", "activeUntil")
+    )

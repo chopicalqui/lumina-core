@@ -81,6 +81,20 @@ class IdpConnectionError(LuminaError):
         self.status_code = 500
 
 
+class AuthorizationError(LuminaError):
+    """
+    Raised when account authorization failed.
+    """
+    def __init__(
+            self,
+            message: str | None = "Authorization failed.",
+            account: Account | None = None,
+            exc: Exception | None = None
+    ):
+        super().__init__(message, account, exc)
+        self.status_code = 403
+
+
 class AuthenticationError(LuminaError):
     """
     Raised when account authentication/authorization failed.
@@ -93,6 +107,19 @@ class AuthenticationError(LuminaError):
     ):
         super().__init__(message, account, exc)
         self.status_code = 401
+
+
+class NotNullConstraintError(LuminaError):
+    """
+    Raised when database update violates a NOT NULL constraint.
+    """
+    def __init__(
+            self, message: str | None = None,
+            account: Account | None = None,
+            exc: Exception | None = None
+    ):
+        super().__init__(message, account, exc)
+        self.status_code = 400
 
 
 class UniqueConstraintError(LuminaError):
