@@ -17,15 +17,17 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
+import sqlalchemy as sa
 from enum import Enum
 from uuid import UUID
-from typing import List, Set
-from datetime import datetime
-from pydantic import BaseModel, Field as PydanticField
+from typing import List, Set, Dict
+from datetime import datetime, date
+from pydantic import BaseModel, ConfigDict, Field as PydanticField, computed_field
 from sqlmodel import SQLModel, Field, Column, ForeignKey, Relationship
-from sqlalchemy import String
 from sqlalchemy.sql import func
 from sqlalchemy.dialects import postgresql
+
+from core.models.account import ApiPermissionEnum
 
 
 class AccessTokenType(Enum):
@@ -45,29 +47,31 @@ class AccessToken(SQLModel, table=True):
     )
     name: str | None = Field(description="The name of the token. Only used for API access tokens.")
     type: AccessTokenType = Field(description="The type of the token.")
-    scopes: Set[str] | None = Field(
+    scopes: Set[ApiPermissionEnum] | None = Field(
         default={},
-        sa_column=Column(postgresql.ARRAY(String)),
+        sa_column=Column(postgresql.ARRAY(sa.Enum(ApiPermissionEnum))),
         description="The scopes of the token."
     )
     revoked: bool = Field(
         sa_column_kwargs=dict(server_default='false'),
         description="Indicates if the token has been revoked."
     )
-    expiration: datetime = Field(description="The expiration date of the token.")
-    value: str = Field(
+    expiration: datetime | None = Field(
+        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=True),
+        description="The expiration date of the token."
+    )
+    checksum: str = Field(
         index=True,
         unique=True,
         description="The SHA256 value of the JWT. Used for token validation and revocation."
     )
     # Internal information only
     created_at: datetime = Field(
-        sa_column_kwargs=dict(server_default=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
         description="The date and time when the token was created."
     )
     last_modified_at: datetime | None = Field(
-        default=None,
-        sa_column_kwargs=dict(onupdate=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), onupdate=func.now(), nullable=True),
         description="The date and time when the token was last modified."
     )
     # Foreign keys
@@ -90,8 +94,7 @@ class AccessTokenCreateUpdateBase(BaseModel):
     """
     Represents the base schema for updating or creating a JWT.
     """
-    scopes: List[str] = PydanticField(description="The scopes of the token.")
-    expiration: datetime = PydanticField(description="The expiration date and time of the token.")
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AccessTokenCreate(AccessTokenCreateUpdateBase):
@@ -99,6 +102,8 @@ class AccessTokenCreate(AccessTokenCreateUpdateBase):
     Schema for creating a JWT. It is used by the FastAPI to create a new JWT.
     """
     name: str = PydanticField(description="The name of the token.")
+    scopes: List[str] = PydanticField(description="The scopes of the token.")
+    expiration: datetime = PydanticField(description="The expiration date and time of the token.")
 
 
 class AccessTokenRead(AccessTokenCreateUpdateBase):
@@ -107,8 +112,33 @@ class AccessTokenRead(AccessTokenCreateUpdateBase):
     """
     id: UUID
     name: str | None = PydanticField(default=None)
+    scope_: List[ApiPermissionEnum] = PydanticField(
+        exclude=True,
+        validation_alias="scopes",
+        description="The scopes of the token."
+    )
+    expiration_: datetime  | None= PydanticField(
+        default=None,
+        exclude=True,
+        validation_alias="expiration",
+        description="The expiration date and time of the token."
+    )
     revoked: bool
     created_at: datetime
+
+    @computed_field
+    def scopes(self) -> List[Dict[str, str]]:
+        """
+        Converts the scopes to a set of enums.
+        """
+        return [{"id": item.name, "label": item.value.description} for item in self.scope_]
+
+    @computed_field
+    def expiration(self) -> date | None:
+        """
+        Converts the scopes to a set of enums.
+        """
+        return self.expiration_.date() if self.expiration_ else None
 
 
 class AccessTokenReadTokenValue(AccessTokenRead):

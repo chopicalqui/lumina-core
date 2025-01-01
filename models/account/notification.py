@@ -17,6 +17,7 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
+import sqlalchemy as sa
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
@@ -51,12 +52,11 @@ class Notification(SQLModel, table=True):
     )
     # Internal information only
     created_at: datetime = Field(
-        sa_column_kwargs=dict(server_default=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
         description="The date and time when the token was created."
     )
     last_modified_at: datetime | None = Field(
-        default=None,
-        sa_column_kwargs=dict(onupdate=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), onupdate=func.now(), nullable=True),
         description="The date and time when the token was last modified."
     )
     # Foreign keys

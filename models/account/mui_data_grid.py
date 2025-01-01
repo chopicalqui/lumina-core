@@ -17,13 +17,12 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
-
+import sqlalchemy as sa
 from uuid import UUID
 from datetime import datetime
 from typing import Dict, List
 from pydantic import Field as PydanticField
 from sqlmodel import SQLModel, Field, Column, ForeignKey, Relationship
-from sqlalchemy import UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.dialects import postgresql
 
@@ -49,17 +48,15 @@ class MuiDataGrid(SQLModel, table=True):
     )
     # Internal information only
     created_at: datetime = Field(
-        sa_column_kwargs=dict(server_default=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
         description="The date and time when the configuration was created."
     )
     last_modified_at: datetime | None = Field(
-        default=None,
-        sa_column_kwargs=dict(onupdate=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), onupdate=func.now(), nullable=True),
         description="The date and time when the configuration was last modified."
     )
     # Foreign keys
     account_id: UUID = Field(
-        default=None,
         sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("account.id", ondelete="CASCADE")),
         description="Foreign key to the account that the configuration belongs to."
     )
@@ -69,7 +66,7 @@ class MuiDataGrid(SQLModel, table=True):
 
     __table_args__ = (
         # TODO: Write unittest for postgresql_nulls_not_distinct
-        UniqueConstraint('settings_id', 'account_id', postgresql_nulls_not_distinct=True),
+        sa.UniqueConstraint('settings_id', 'account_id', postgresql_nulls_not_distinct=True),
     )
 
 
@@ -91,17 +88,15 @@ class MuiDataGridFilter(SQLModel, table=True):
     )
     # Internal information only
     created_at: datetime = Field(
-        sa_column_kwargs=dict(server_default=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
         description="The date and time when the filter was created."
     )
     last_modified_at: datetime | None = Field(
-        default=None,
-        sa_column_kwargs=dict(onupdate=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), onupdate=func.now(), nullable=True),
         description="The date and time when the filter was last modified."
     )
     # Foreign keys
     data_grid_id: UUID = Field(
-        default=None,
         sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("muidatagrid.id", ondelete="CASCADE")),
         description="Foreign key to the data grid that the filter belongs to."
     )

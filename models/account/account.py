@@ -17,13 +17,13 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
+import sqlalchemy as sa
 from enum import IntEnum
 from uuid import UUID
 from datetime import date, datetime
 from typing import List, Set, Dict
 from pydantic import BaseModel, Field as PydanticField, ConfigDict, AliasChoices
 from sqlmodel import SQLModel, Field, Column, Relationship
-from sqlalchemy import Enum
 from sqlalchemy.sql import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects import postgresql
@@ -81,6 +81,7 @@ class Account(SQLModel, table=True):
         description="The date when the account becomes active. Before this date, the account cannot log in."
     )
     active_until: date | None = Field(
+        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=True),
         description="The date when the account becomes inactive. After this date, the account cannot log in."
     )
     # Account settings
@@ -99,17 +100,20 @@ class Account(SQLModel, table=True):
     avatar: bytes | None = Field(description="The account's avatar image.")
     roles: Set[RoleEnum] = Field(
         default={},
-        sa_column=Column(postgresql.ARRAY(Enum(RoleEnum))),
+        sa_column=Column(postgresql.ARRAY(sa.Enum(RoleEnum))),
         description="The roles of the account."
     )
     # Internal information only
-    last_login: datetime | None = Field(description="The date and time when the account last logged in.")
+    last_login: datetime | None = Field(
+        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=True),
+        description="The date and time when the account last logged in."
+    )
     created_at: datetime = Field(
-        sa_column_kwargs=dict(server_default=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
         description="The date and time when the account was created."
     )
     last_modified_at: datetime | None = Field(
-        sa_column_kwargs=dict(onupdate=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), onupdate=func.now(), nullable=True),
         description="The date and time when the account was last modified."
     )
     # Relationship definitions

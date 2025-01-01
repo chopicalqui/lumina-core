@@ -19,7 +19,10 @@ __license__ = "GPLv3"
 
 import hashlib
 from uuid import UUID
+from cryptography.hazmat.primitives import hashes, hmac
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from pydantic import BaseModel, Field as PydanticField, AliasChoices
+
 from .status import StatusMessage
 from ..models.account import Account
 
@@ -158,3 +161,16 @@ def sha256(string: str) -> str:
     Returns the SHA-256 hash of a string.
     """
     return hashlib.sha256(string.strip().encode("utf-8")).hexdigest()
+
+
+def hmac_sha256(data: str, key: str) -> str:
+    """
+    Returns the HMAC-SHA256 hash of a string.
+    """
+    if not key:
+        raise ValueError("HMAC key is empty.")
+    h = hmac.HMAC(key.encode(), hashes.SHA256())
+    h.update(data.encode())
+    # Generate the HMAC (keyed hash)
+    digest = h.finalize()
+    return digest.hex()

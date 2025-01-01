@@ -18,6 +18,7 @@ __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
 import uuid
+import sqlalchemy as sa
 from sqlalchemy.sql import func
 from datetime import datetime
 from sqlmodel import Field, SQLModel
@@ -45,11 +46,11 @@ class Country(SQLModel, table=True):
     svg_image: str = Field(description="The SVG image of the country.")
     # Internal information only
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
         description="The date and time when the country was created."
     )
     last_modified_at: datetime | None = Field(
-        sa_column_kwargs=dict(onupdate=func.now()),
+        sa_column=sa.Column(sa.DateTime(timezone=True), onupdate=func.now(), nullable=True),
         description="The date and time when the country was last modified."
     )
 
