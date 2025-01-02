@@ -81,7 +81,6 @@ class Account(SQLModel, table=True):
         description="The date when the account becomes active. Before this date, the account cannot log in."
     )
     active_until: date | None = Field(
-        sa_column=sa.Column(sa.DateTime(timezone=True), nullable=True),
         description="The date when the account becomes inactive. After this date, the account cannot log in."
     )
     # Account settings
