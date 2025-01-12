@@ -23,10 +23,10 @@ from typing import Any, Type
 from pydantic import BaseModel
 from sqlmodel import SQLModel
 from sqlalchemy import UniqueConstraint, text
-from sqlalchemy.future import select
-from sqlalchemy.engine import Connection
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio.engine import AsyncConnection
+
 from ..utils import NotFoundError
 from ..utils.config import SettingsBase
 
@@ -39,25 +39,25 @@ class DatabaseObjectBase:
     """
     Base class for managing database objects like views, procedures and triggers.
     """
-    def __init__(self, connection: Connection):
+    def __init__(self, connection: AsyncConnection):
         self._connection = connection
 
-    def _execute(self, content: str):
+    async def _execute(self, content: str):
         """
         Executes the given SQL statement.
         """
         # print(content)
-        self._connection.execute(text(content).execution_options(autocommit=True))
+        await self._connection.execute(text(content).execution_options(autocommit=True))
 
     @abstractmethod
-    def create(self, **kwargs):
+    async def create(self, **kwargs):
         """
         Create the database object.
         """
         ...
 
     @abstractmethod
-    def drop(self, **kwargs):
+    async def drop(self, **kwargs):
         """
         Drop the database object.
         """

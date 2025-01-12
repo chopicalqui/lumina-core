@@ -20,8 +20,8 @@ __license__ = "GPLv3"
 import sqlalchemy as sa
 from uuid import UUID
 from datetime import datetime
-from typing import Dict, List
-from pydantic import Field as PydanticField
+from typing import Dict, List, Any
+from pydantic import Field as PydanticField, BaseModel, field_validator
 from sqlmodel import SQLModel, Field, Column, ForeignKey, Relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects import postgresql
@@ -31,7 +31,6 @@ class MuiDataGrid(SQLModel, table=True):
     """
     Store information about an account's Material UI DataGrid configuration.
     """
-
     id: UUID = Field(
         primary_key=True,
         index=True,
@@ -72,7 +71,7 @@ class MuiDataGrid(SQLModel, table=True):
 
 class MuiDataGridFilter(SQLModel, table=True):
     """
-    Store information about a account's Material UI DataGrid filter configuration.
+    Store information about an account's Material UI DataGrid filter configuration.
     """
     id: UUID = Field(
         primary_key=True,
@@ -119,3 +118,90 @@ class MuiDataGridFilterLookup(SQLModel):
     """
     id: UUID
     name: str
+
+
+class RowGroupingModel(BaseModel):
+    """
+    Represents the grouping configuration for rows in the MUI DataGrid
+    """
+    model: List[Any] = Field(default=[])
+
+
+class FilterModel(BaseModel):
+    """
+    Handles filtering logic and options for the MUI DataGrid, including quick filters and logic operators
+    """
+    items: List[Any] = Field(default=[])
+    logicOperator: str = Field(default="and")
+    quickFilterValues: List[Any] = Field(default=[])
+    quickFilterLogicOperator: str = Field(default="and")
+
+
+class Filter(BaseModel):
+    """
+    Wraps the filter model configuration for easier integration in the MUI DataGrid
+    """
+    filterModel: FilterModel
+
+
+class Sorting(BaseModel):
+    """
+    Defines the sorting configuration, including the order of sorting for the MUI DataGrid
+    """
+    sortModel: List[Any] = Field(default=[])
+
+
+class PaginationModel(BaseModel):
+    """
+    Represents the pagination settings, such as the current page and rows per page for the MUI DataGrid
+    """
+    page: int = Field(default=0)
+    pageSize: int = Field(default=100)
+
+
+class Pagination(BaseModel):
+    """
+    Wraps pagination metadata and model for the MUI DataGrid
+    """
+    meta: Dict[str, Any] = Field(default={})
+    paginationModel: PaginationModel
+    rowCount: int = Field(default=0)
+
+
+class ColumnDimensions(BaseModel):
+    """
+    Defines column size constraints like width and flex for the MUI DataGrid
+    """
+    maxWidth: int = Field(default=-1)
+    minWidth: int = Field(default=50)
+    width: int | None = None
+    flex: int | None = None
+
+
+class Columns(BaseModel):
+    """
+    Encapsulates column visibility, ordering, and dimension configurations for the MUI DataGrid
+    """
+    columnVisibilityModel: Dict[str, bool] = Field(default={})
+    orderedFields: List[str] = Field(default=[])
+    dimensions: Dict[str, ColumnDimensions] = Field(default={})
+
+
+class TableConfig(BaseModel):
+    """
+    The main configuration class for the MUI DataGrid, combining settings for grouping, filtering, sorting, pagination, and columns
+    """
+    rowGrouping: RowGroupingModel
+    pinnedColumns: Dict[str, Any] = Field(default={})
+    filter: Filter
+    sorting: Sorting
+    density: str = Field(default="compact")
+    pagination: Pagination
+    columns: Columns
+
+    @field_validator('density')
+    def validate_density(cls, value):
+        valid_densities = {'compact', 'standard', 'comfortable'}
+        if value not in valid_densities:
+            raise ValueError(f"Invalid density: {value}. Must be one of {valid_densities}")
+        return value

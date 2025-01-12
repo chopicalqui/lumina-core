@@ -22,9 +22,10 @@ from enum import IntEnum
 from uuid import UUID
 from datetime import date, datetime
 from typing import List, Set, Dict
-from pydantic import BaseModel, Field as PydanticField, ConfigDict, AliasChoices
+from pydantic import BaseModel, Field as PydanticField, ConfigDict, AliasChoices, computed_field
 from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy.sql import func
+from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects import postgresql
 from .access_token import AccessTokenType, AccessToken
@@ -117,20 +118,27 @@ class Account(SQLModel, table=True):
     )
     # Relationship definitions
     tokens: List[AccessToken] = Relationship(
-        back_populates="account", cascade_delete=True
+        sa_relationship_kwargs=dict(
+            back_populates="account",
+            # We sort desc in order to obtain the latest token first.
+            # Note: If you change this logic, then you need to update AccountReadMe.expiration
+            order_by="desc(AccessToken.expiration)",
+            lazy='selectin'
+        ),
+        cascade_delete=True
     )
     notifications: List[Notification] = Relationship(
         sa_relationship_kwargs=dict(
             back_populates="account",
             order_by="desc(Notification.created_at)",
-            lazy='selectin'
+            # lazy='selectin'
         ),
         cascade_delete=True
     )
     data_grids: List[MuiDataGrid] = Relationship(
         sa_relationship_kwargs=dict(
             back_populates="account",
-            lazy='selectin'
+            # lazy='selectin'
         ),
         cascade_delete=True
     )
@@ -160,38 +168,18 @@ class Account(SQLModel, table=True):
                self.active_from <= date.today() and \
                (not self.active_until or self.active_until > date.today())
 
-    def get_access_token(self, name: str) -> str | None:
-        """
-        Returns the account's access token by name.
-        """
-        result = [item for item in self.tokens if item.name == name and item.type == AccessTokenType.api]
-        if not result:
-            return None
-        return result[0].value
-
-    def get_data_grid(self, settings_id: UUID) -> Dict:
-        """
-        Returns the account's Material UI DataGrid configuration by settings_id.
-        """
-        result = [item for item in self.data_grids if item.settings_id == settings_id]
-        if not result:
-            return {}
-        return result[0].settings
-
-    def get_data_grid_filters(self, settings_id: UUID) -> List[Dict]:
-        """
-        Returns the account's Material UI DataGrid filter configurations by settings_id.
-        """
-        result = [item for item in self.data_grids if item.settings_id == settings_id]
-        if not result:
-            return []
-        return [item.filter for item in result[0].filters]
-
     async def notify(self, session: AsyncSession, message: Notify, dedup: bool = True):
         """
         Send the account a notification.
         """
-        unread_duplicates = [item for item in self.notifications if item.message == message and not item.read]
+        unread_duplicates = (await session.execute(
+            select(Notification).where(
+                sa.and_(
+                    Notification.message == message,
+                    not Notification.read
+                )
+            )
+        )).scalars().all()
         if not dedup or len(unread_duplicates) == 0:
             session.add(Notification(**message.dict(), account_id=self.id))
         else:
@@ -264,14 +252,31 @@ class WebSocketNotifyAccount(BaseModel):
     status: StatusMessage
 
 
-class AccountReadMe(AccountRead):
+class AccountReadMe(BaseModel):
     """
     This is the account schema. It is used by the FastAPI to read an account.
     """
+    id: UUID
+    email: str
+    full_name: str
+    roles: Set[RoleEnum]
     light_mode: bool
     sidebar_collapsed: bool
     table_density: TableDensityType
-    avatar: str | None = PydanticField(default=None)
+    avatar: str | None = PydanticField(exclude=True, default=None)
+    tokens: List[AccessToken] = PydanticField(default=[], exclude=True)
+
+    @computed_field
+    def has_avatar(self) -> bool:
+        return self.avatar is not None
+
+    @computed_field
+    def expiration(self) -> datetime:
+        # Obtain all user tokens (tokens sorting is desc)
+        if not (result := [item.expiration for item in self.tokens if item.type == AccessTokenType.user]):
+            raise AuthenticationError(account=self)
+        # Return the latest user token
+        return result[0]
 
 
 class AccountUpdateAdmin(SQLModel):
@@ -290,3 +295,32 @@ class AccountUpdateAdmin(SQLModel):
         default=None,
         validation_alias=AliasChoices("active_until", "activeUntil")
     )
+
+
+class LuminaError(Exception):
+    """
+    Base class for all exceptions in this application.
+    """
+    def __init__(
+            self,
+            message: str | None = None,
+            account: Account | AccountRead | AccountReadMe | None = None,
+            exc: Exception | None = None
+    ):
+        super().__init__(message)
+        self.account = account
+        self.exc = exc
+
+
+class AuthenticationError(LuminaError):
+    """
+    Raised when account authentication/authorization failed.
+    """
+    def __init__(
+            self,
+            message: str | None = "Authentication failed.",
+            account: Account | AccountRead | AccountReadMe | None = None,
+            exc: Exception | None = None
+    ):
+        super().__init__(message, account, exc)
+        self.status_code = 401

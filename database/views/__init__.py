@@ -17,17 +17,18 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
-from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio.engine import AsyncConnection
+
 from .. import DatabaseObjectBase
 
 
 class DatabaseView(DatabaseObjectBase):
     """
-    Base class to manage database triggers
+    Base class to manage database views
     """
     def __init__(
             self,
-            connection: Connection,
+            connection: AsyncConnection,
             name: str,
             query: str
     ):
@@ -35,8 +36,8 @@ class DatabaseView(DatabaseObjectBase):
         self.name = name
         self.query = query
 
-    def create(self):
-        self._execute(f"CREATE OR REPLACE VIEW {self.name} AS {self.query}")
+    async def create(self):
+        await self._execute(f"CREATE OR REPLACE VIEW {self.name} AS {self.query}")
 
-    def drop(self):
-        self._execute(f"DROP VIEW IF EXISTS {self.name}")
+    async def drop(self):
+        await self._execute(f"DROP VIEW IF EXISTS {self.name}")
