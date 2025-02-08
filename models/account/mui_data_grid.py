@@ -26,6 +26,8 @@ from sqlmodel import SQLModel, Field, Column, ForeignKey, Relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects import postgresql
 
+from .mui_data_grid_filter import MuiDataGridFilter, Filter
+
 
 class MuiDataGrid(SQLModel, table=True):
     """
@@ -45,6 +47,13 @@ class MuiDataGrid(SQLModel, table=True):
         sa_column=Column(postgresql.JSON()),
         description="The data grid settings."
     )
+    selected_filter_id: UUID | None = Field(
+        sa_column=Column(
+            postgresql.UUID(as_uuid=True),
+            ForeignKey("muidatagridfilter.id", ondelete="SET NULL")
+        ),
+        description="The currently selected filter."
+    )
     # Internal information only
     created_at: datetime = Field(
         sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
@@ -61,7 +70,19 @@ class MuiDataGrid(SQLModel, table=True):
     )
     # Relationship definitions
     account: "Account" = Relationship(back_populates="data_grids")
-    filters: List["MuiDataGridFilter"] = Relationship(back_populates="data_grid")
+    selected_filter: MuiDataGridFilter | None = Relationship(
+        sa_relationship_kwargs=dict(
+            lazy="selectin",
+            foreign_keys="[MuiDataGrid.selected_filter_id]"
+        )
+    )
+    filters: List[MuiDataGridFilter] = Relationship(
+        cascade_delete=True,
+        sa_relationship_kwargs=dict(
+            back_populates="data_grid",
+            foreign_keys="[MuiDataGridFilter.data_grid_id]",
+        )
+    )
 
     __table_args__ = (
         # TODO: Write unittest for postgresql_nulls_not_distinct
@@ -69,79 +90,11 @@ class MuiDataGrid(SQLModel, table=True):
     )
 
 
-class MuiDataGridFilter(SQLModel, table=True):
-    """
-    Store information about an account's Material UI DataGrid filter configuration.
-    """
-    id: UUID = Field(
-        primary_key=True,
-        index=True,
-        sa_column_kwargs=dict(server_default=func.gen_random_uuid()),
-        description="The unique identifier of the data grid filter configuration."
-    )
-    name: str = Field(description="The name of the filter.")
-    filter: Dict | None = Field(
-        default={},
-        sa_column=Column(postgresql.JSON()),
-        description="The data grid filter."
-    )
-    # Internal information only
-    created_at: datetime = Field(
-        sa_column=sa.Column(sa.DateTime(timezone=True), server_default=func.now(), nullable=False),
-        description="The date and time when the filter was created."
-    )
-    last_modified_at: datetime | None = Field(
-        sa_column=sa.Column(sa.DateTime(timezone=True), onupdate=func.now(), nullable=True),
-        description="The date and time when the filter was last modified."
-    )
-    # Foreign keys
-    data_grid_id: UUID = Field(
-        sa_column=Column(postgresql.UUID(as_uuid=True), ForeignKey("muidatagrid.id", ondelete="CASCADE")),
-        description="Foreign key to the data grid that the filter belongs to."
-    )
-    # Relationship definitions
-    data_grid: List["MuiDataGrid"] = Relationship(back_populates="filters")
-
-
-class MuiDataGridFilterRead(SQLModel):
-    """
-    This is the Material UI DataGrid filter schema. It is used by the FastAPI to read a filter.
-    """
-    id: UUID
-    name: str
-    filter: Dict | None = PydanticField(default=None)
-
-
-class MuiDataGridFilterLookup(SQLModel):
-    """
-    This is the Material UI DataGrid filter lookup schema. It is used by the FastAPI to read a filter.
-    """
-    id: UUID
-    name: str
-
-
 class RowGroupingModel(BaseModel):
     """
     Represents the grouping configuration for rows in the MUI DataGrid
     """
     model: List[Any] = Field(default=[])
-
-
-class FilterModel(BaseModel):
-    """
-    Handles filtering logic and options for the MUI DataGrid, including quick filters and logic operators
-    """
-    items: List[Any] = Field(default=[])
-    logicOperator: str = Field(default="and")
-    quickFilterValues: List[Any] = Field(default=[])
-    quickFilterLogicOperator: str = Field(default="and")
-
-
-class Filter(BaseModel):
-    """
-    Wraps the filter model configuration for easier integration in the MUI DataGrid
-    """
-    filterModel: FilterModel
 
 
 class Sorting(BaseModel):
@@ -189,7 +142,8 @@ class Columns(BaseModel):
 
 class TableConfig(BaseModel):
     """
-    The main configuration class for the MUI DataGrid, combining settings for grouping, filtering, sorting, pagination, and columns
+    The main configuration class for the MUI DataGrid, combining settings for grouping, sorting, pagination,
+    and columns (without filters).
     """
     rowGrouping: RowGroupingModel
     pinnedColumns: Dict[str, Any] = Field(default={})
@@ -205,3 +159,10 @@ class TableConfig(BaseModel):
         if value not in valid_densities:
             raise ValueError(f"Invalid density: {value}. Must be one of {valid_densities}")
         return value
+
+
+class MuiDataGridRead(BaseModel):
+    """
+    Schema for reading a DataGrid configuration.
+    """
+    settings: Dict | None = PydanticField(default={})
