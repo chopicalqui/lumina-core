@@ -17,6 +17,7 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
+from .account_triggers import CleanupObsoleteAccessTokenTrigger
 from .. import engine
 
 
@@ -25,7 +26,7 @@ async def drop_functions():
     Drops all views in the database.
     """
     async with engine.begin() as conn:
-        ...
+        await CleanupObsoleteAccessTokenTrigger(conn).drop()
 
 
 async def create_functions():
@@ -33,4 +34,4 @@ async def create_functions():
     Create all views in the database.
     """
     async with engine.begin() as conn:
-        ...
+        await CleanupObsoleteAccessTokenTrigger(conn).create()

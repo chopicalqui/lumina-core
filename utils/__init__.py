@@ -20,26 +20,10 @@ __license__ = "GPLv3"
 import hashlib
 from uuid import UUID
 from cryptography.hazmat.primitives import hashes, hmac
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from pydantic import BaseModel, Field as PydanticField, AliasChoices
 
 from .status import StatusMessage
-from ..models.account import Account
-
-
-class LuminaError(Exception):
-    """
-    Base class for all exceptions in this application.
-    """
-    def __init__(
-            self,
-            message: str | None = None,
-            account: Account | None = None,
-            exc: Exception | None = None
-    ):
-        super().__init__(message)
-        self.account = account
-        self.exc = exc
+from ..models.account import Account, LuminaError, AuthenticationError
 
 
 class NotFoundError(LuminaError):
@@ -96,20 +80,6 @@ class AuthorizationError(LuminaError):
     ):
         super().__init__(message, account, exc)
         self.status_code = 403
-
-
-class AuthenticationError(LuminaError):
-    """
-    Raised when account authentication/authorization failed.
-    """
-    def __init__(
-            self,
-            message: str | None = "Authentication failed.",
-            account: Account | None = None,
-            exc: Exception | None = None
-    ):
-        super().__init__(message, account, exc)
-        self.status_code = 401
 
 
 class NotNullConstraintError(LuminaError):

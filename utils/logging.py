@@ -20,6 +20,8 @@ __license__ = "GPLv3"
 import os
 import sys
 import logging
+from fastapi.requests import Request
+
 from ..models.account import Account
 
 # Obtain the log level, log file, and log broker host from the environment variables.
@@ -27,7 +29,7 @@ log_file = os.getenv('LOG_FILE')
 log_level = os.getenv('LOG_LEVEL', 'INFO')
 log_format = os.getenv(
     'LOG_FORMAT',
-    '%(asctime)s [%(levelname)-8s] %(client_ip)-15s %(account_name)s - %(name)s - %(message)s'
+    '%(asctime)s [%(levelname)-8s] - %(client_addr)s / %(account_name)s - %(method)s %(path)s - %(message)s'
 )
 log_date_format = os.getenv('LOG_DATE_FORMAT', '%Y-%m-%d %H:%M:%S')
 log_broker_host = os.getenv('LOG_BROKER_HOST')
@@ -37,15 +39,21 @@ class InjectingFilter(logging.Filter):
     """
     This is a custom logging filter that adds an account name field to the log record.
     """
-    def __init__(self, account: Account | None = None):
+
+    def __init__(self, account: Account | None = None, request: Request | None = None):
         super().__init__()
         self.account = account
+        self.request = request
         self.email = account.email if account else None
-        self.client_ip = account.client_ip if account else None
+        self.client_addr = request.headers.get("X-Real-IP") if request else None
+        self.path = request.url.path if request else None
+        self.method = request.method if request else None
 
     def filter(self, record):
         record.account_name = self.email or 'n/a'
-        record.client_ip = self.client_ip or 'n/a'
+        record.client_addr = self.client_addr or 'n/a'
+        record.method = self.method or "n/a"
+        record.path = self.path or "n/a"
         return True
 
 
@@ -56,8 +64,12 @@ def record_factory(*args, **kwargs):
     record = old_factory(*args, **kwargs)
     if not hasattr(record, 'account_name'):
         record.account_name = "n/a"
-    if not hasattr(record, 'client_ip'):
-        record.client_ip = "n/a"
+    if not hasattr(record, 'client_addr'):
+        record.client_addr = "n/a"
+    if not hasattr(record, 'method'):
+        record.method = "n/a"
+    if not hasattr(record, 'path'):
+        record.path = "n/a"
     return record
 
 

@@ -19,14 +19,16 @@ __license__ = "GPLv3"
 
 from abc import abstractmethod
 from uuid import UUID
-from typing import Any, Type
+from typing import Any, Type, List
 from pydantic import BaseModel
 from sqlmodel import SQLModel
 from sqlalchemy import UniqueConstraint, text
+from sqlalchemy.orm import selectinload
 from sqlalchemy.future import select
-from sqlalchemy.engine import Connection
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio.engine import AsyncConnection
+
 from ..utils import NotFoundError
 from ..utils.config import SettingsBase
 
@@ -39,25 +41,25 @@ class DatabaseObjectBase:
     """
     Base class for managing database objects like views, procedures and triggers.
     """
-    def __init__(self, connection: Connection):
+    def __init__(self, connection: AsyncConnection):
         self._connection = connection
 
-    def _execute(self, content: str):
+    async def _execute(self, content: str):
         """
         Executes the given SQL statement.
         """
         # print(content)
-        self._connection.execute(text(content).execution_options(autocommit=True))
+        await self._connection.execute(text(content).execution_options(autocommit=True))
 
     @abstractmethod
-    def create(self, **kwargs):
+    async def create(self, **kwargs):
         """
         Create the database object.
         """
         ...
 
     @abstractmethod
-    def drop(self, **kwargs):
+    async def drop(self, **kwargs):
         """
         Drop the database object.
         """
@@ -75,12 +77,16 @@ def compile_create_uc(create, compiler, **kw):
     return stmt
 
 
-async def get_by_id(session: AsyncSession, model: Type, item_id: UUID) -> Any:
+async def get_by_id(session: AsyncSession, model: Type, item_id: UUID, inloadlist: List[Any] = None) -> Any:
     """
     Get an object of class model by its ID from the database.
     """
-    result = await session.get(model, item_id)
-    if not result:
+    # Create initial query
+    query = select(model).where(model.id == item_id)
+    # Side-load additional relationship data that needs to be updated
+    for relationship in (inloadlist or []):
+        query = query.options(selectinload(relationship))
+    if not (result := (await session.execute(query)).scalar_one_or_none()):
         raise NotFoundError(f"{model.__name__} with ID '{item_id}' not found.")
     return result
 
@@ -91,6 +97,7 @@ async def update_database_record(
         query_model: Type[BaseModel],
         source_model: Type[BaseModel],
         commit: bool,
+        inloadlist: List[Any] = None,
         **kwargs
 ) -> SQLModel:
     """
@@ -101,10 +108,11 @@ async def update_database_record(
     :param query_model: The class of the object that is queried from the database.
     :param source_model: The class of the source object.
     :param commit: If True, the changes are committed to the database.
+    :param inloadlist: A list of relationships that are side-loaded when the object is queried from the database.
     :param kwargs: Additional keyword arguments that are passed to the update_attributes method.
     :return:
     """
-    result = await get_by_id(session=session, model=query_model, item_id=source.id)
+    result = await get_by_id(session=session, model=query_model, item_id=source.id, inloadlist=inloadlist)
     update_attributes(target=result, source=source, source_model=source_model, **kwargs)
     session.add(result)
     if commit:

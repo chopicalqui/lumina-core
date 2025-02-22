@@ -17,11 +17,11 @@ __author__ = "Lukas Reiter"
 __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
-
 from enum import Enum
 from typing import List, Optional
-from sqlalchemy.engine import Connection
 from abc import abstractmethod
+from sqlalchemy.ext.asyncio.engine import AsyncConnection
+
 from .. import DatabaseObjectBase
 
 
@@ -41,13 +41,14 @@ class TriggerEventEnum(Enum):
 class FunctionReturnEnum(Enum):
     void = "VOID"
     trigger = "TRIGGER"
-    anyelement = "ENYELEMENT"
+    anyelement = "ANYELEMENT"
 
 
 class DatabaseTrigger:
     """
     Base class to manage database triggers
     """
+
     def __init__(
             self,
             name: str,
@@ -94,9 +95,10 @@ class DatabaseFunction(DatabaseObjectBase):
     """
     Base class to manage database triggers
     """
+
     def __init__(
             self,
-            connection: Connection,
+            connection: AsyncConnection,
             name: str,
             returns: FunctionReturnEnum,
             arguments: List[FunctionArgument] = None,
@@ -110,17 +112,17 @@ class DatabaseFunction(DatabaseObjectBase):
         self._returns = returns
         self._arguments = ", ".join([f"{item.name} {item.type}" for item in (arguments if arguments else [])])
 
-    def drop(self):
+    async def drop(self):
         """
         Drop the function together with all calling triggers.
         """
         # Drop all database triggers
         for trigger in self._triggers:
-            self._execute(trigger.drop())
+            await self._execute(trigger.drop())
         # Drop the function
-        self._execute("DROP FUNCTION IF EXISTS " + self.name + ";")
+        await self._execute("DROP FUNCTION IF EXISTS " + self.name + ";")
 
-    def create(self):
+    async def create(self):
         """
         Create the function together with all calling triggers.
         """
@@ -130,10 +132,10 @@ RETURNS {self._returns.name.upper()} AS $$
 {body}
 $$ LANGUAGE PLPGSQL;"""
         # Create the function
-        self._execute(content)
+        await self._execute(content)
         # Create the database triggers calling this function
         for trigger in self._triggers:
-            self._execute(trigger.create(self.name))
+            await self._execute(trigger.create(self.name))
 
     @abstractmethod
     def _create(self) -> str:

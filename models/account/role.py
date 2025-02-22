@@ -33,6 +33,7 @@ class ApiPermissionDetails:
     """
     Class that contains the details of a REST API permission.
     """
+
     def __init__(self, description: str, api_access: bool = False):
         self.description = description
         self.api_access = api_access
