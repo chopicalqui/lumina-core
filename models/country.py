@@ -38,10 +38,13 @@ class Country(SQLModel, table=True):
     name: str = Field(unique=True, description="The name of the country.")
     code: str = Field(unique=True, description="The code of the country.")
     phone: str = Field(description="The phone code of the country.")
-    # Countries are sorted per default desc and name asc. Hence, it allows prioritizing countries in dropdown menus.
     default: bool = Field(
         sa_column_kwargs=dict(server_default='false'),
-        description="Indicates if the country is the default country."
+        description="Countries marked as default are displayed first."
+    )
+    display: bool = Field(
+        sa_column_kwargs=dict(server_default='true'),
+        description="Defines whether the country should be returned by the backend."
     )
     svg_image: str = Field(description="The SVG image of the country.")
     # Internal information only
@@ -74,6 +77,16 @@ class CountryRead(SQLModel):
     code: str
     phone: str
     default: bool
+    display: bool
+
+
+class CountryUpdate(SQLModel):
+    """
+    This is the country schema. It is used by the FastAPI to update information about a country.
+    """
+    id: uuid.UUID
+    default: bool
+    display: bool
 
 
 class CountryLookup(BaseModel):
@@ -81,8 +94,5 @@ class CountryLookup(BaseModel):
     This is the country lookup schema. It is used by the FastAPI to return information about a country.
     """
     id: uuid.UUID
-    name: str
-    code: str = PydanticField(
-        serialization_alias="country_code",
-        validation_alias=AliasChoices("code", "country_code")
-    )
+    name: str = PydanticField(serialization_alias="label")
+    code: str = PydanticField()
