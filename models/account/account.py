@@ -22,7 +22,9 @@ from enum import IntEnum
 from uuid import UUID
 from datetime import date, datetime
 from typing import List, Set, Dict
-from pydantic import BaseModel, Field as PydanticField, ConfigDict, AliasChoices, computed_field
+from pydantic import (
+    BaseModel, Field as PydanticField, ConfigDict, AliasChoices, computed_field, field_validator, field_serializer
+)
 from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy.sql import func
 from sqlalchemy.future import select
@@ -263,7 +265,7 @@ class AccountReadMe(BaseModel):
     light_mode: bool
     sidebar_collapsed: bool
     table_density: TableDensityType
-    avatar: str | None = PydanticField(exclude=True, default=None)
+    avatar: bytes | None = PydanticField(exclude=True, default=None)
     tokens: List[AccessToken] = PydanticField(default=[], exclude=True)
 
     @computed_field
@@ -277,6 +279,10 @@ class AccountReadMe(BaseModel):
             raise AuthenticationError(account=self)
         # Return the latest user token
         return result[0]
+
+    @field_serializer('table_density')
+    def serialize_table_density(self, value: TableDensityType) -> str:
+        return TableDensityType.compact.name if value is None else value.name
 
 
 class AccountUpdateAdmin(SQLModel):
@@ -295,6 +301,23 @@ class AccountUpdateAdmin(SQLModel):
         default=None,
         validation_alias=AliasChoices("active_until", "activeUntil")
     )
+
+
+class TableDensityUpdate(BaseModel):
+    """
+    The model that updates the table density setting.
+    """
+    density: TableDensityType
+
+    @field_validator("density", mode="before")
+    @classmethod
+    def convert_density(cls, value: str):
+        if isinstance(value, str):
+            try:
+                return TableDensityType[value.lower()]
+            except KeyError:
+                raise ValueError(f"Invalid density value: {value}")
+        return value  # Assume it's already a valid enum instance
 
 
 class LuminaError(Exception):

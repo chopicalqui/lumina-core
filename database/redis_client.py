@@ -18,10 +18,11 @@ __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
 import json
-import time
+import asyncio
 import logging
 from redis.exceptions import ConnectionError
 from typing import Dict, Callable, Coroutine
+
 from . import settings_base
 from ..utils import LuminaError
 from core.models.account import WebSocketNotifyAccount as NotifyAccount
@@ -52,15 +53,15 @@ async def publish(
     :param channel: The channel to which the caller wants to send the message.
     :param message: The message that shall be published.
     """
-    r = await settings_base.create_redis(username=username, password=password)
+    redis = await settings_base.create_redis(username=username, password=password)
     try:
         result = json.dumps(message) if isinstance(message, dict) else message
-        await r.lpush(channel, result)
-        logger.debug(f"Published message to channel {channel}.")
+        await redis.publish(channel, result)  # Use `publish` instead of `lpush`
+        logger.debug(f"Published message to channel {channel}")
     except ConnectionError as e:
-        logger.exception(e)
+        logger.exception(f"Failed to publish message: {e}")
     finally:
-        await r.aclose()
+        await redis.aclose()
 
 
 async def subscribe(
@@ -77,20 +78,25 @@ async def subscribe(
     :param channel: The channel to which the caller wants to subscribe.
     :param callback: The function that shall be called for each message.
     """
-    r = settings_base.create_redis(username=username, password=password)
-    while True:
-        try:
-            message = await r.blpop(channel)
-            chl, data = message
-            if data is not None and chl.decode() == channel:
-                logger.debug(f"Received message from channel {channel}.")
-                await callback(data.decode())
-        except ConnectionError:
-            logger.warning("Lost connection to Redis. Reconnecting in 10 seconds ...")
-            time.sleep(10)
+    redis = await settings_base.create_redis(username=username, password=password)
+    try:
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(channel)
+
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                logger.debug(f"Received message from channel {channel}")
+                await callback(message["data"])
+
+    except Exception as e:
+        logger.warning(f"Lost connection to Redis: {e}. Reconnecting in 10 seconds ...")
+        await asyncio.sleep(10)
+        await subscribe(username, password, channel, callback)
+    finally:
+        await redis.aclose()
 
 
-async def notify_user(
+async def notify_account(
         message: NotifyAccount,
 ):
     """

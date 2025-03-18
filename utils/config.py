@@ -18,7 +18,10 @@ __copyright__ = "Copyright (C) 2024 Lukas Reiter"
 __license__ = "GPLv3"
 
 import os
-import redis
+import logging
+import redis.asyncio as aioredis
+
+logger = logging.getLogger("lumina.redis")
 
 
 class SettingsBase:
@@ -51,21 +54,32 @@ class SettingsBase:
         self.redis_port = int(os.getenv("REDIS_PORT", 6379))
         self.redis_ssl = os.getenv("REDIS_USE_SSL", "true").lower() == "true"
         self.redis_notify_user_channel = os.getenv("REDIS_NOTIFY_USER_CHANNEL")
-        # Channel definitions
-        self.redis_notify_account_channel = os.getenv("REDIS_NOTIFY_ACCOUNT_CHANNEL")
         # Resource files
         self.country_file = os.path.join(os.getenv("STATIC_DATA_LOCATION", ""), "country-data.json")
+        # Logging
+        if not self.db_host:
+            raise ValueError("Database host not set.")
+        if not self.db_name:
+            raise ValueError("Database name not set.")
+        if not self.db_user or not self.db_password:
+            logger.warning("Database user or password not set.")
+        if not self.redis_host:
+            raise ValueError("Redis host not set.")
+        if not self.db_ssl:
+            logger.warning("Database is not using SSL.")
+        if not self.redis_ssl:
+            logger.warning("Redis is not using SSL.")
 
     @property
-    def database_uri(self):
+    def database_uri(self) -> str:
         uri_string = f"{self.db_scheme}://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
         return uri_string + f"?sslmode=verify-full&sslrootcert={self.cert}" if self.db_ssl else uri_string
 
-    def create_redis(self, username: str, password: str) -> redis.Redis:
-        return redis.Redis(
-            host=self.redis_host,
-            port=self.redis_port,
-            username=username,
-            password=password,
-            ssl=self.redis_ssl
-        )
+    async def create_redis(self, username: str | None, password: str | None) -> aioredis.Redis:
+        scheme = "rediss" if self.redis_ssl else "redis"
+        if username and password:
+            redis_url = f"{scheme}://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}"
+        else:
+            redis_url = f"{scheme}://{self.redis_host}:{self.redis_port}"
+            logger.warning("Unauthenticated access attempt to Redis.")
+        return await aioredis.from_url(redis_url, decode_responses=True)
